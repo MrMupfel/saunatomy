@@ -4,10 +4,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    
+
     <title>Saunatomy</title>
 
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -32,10 +33,49 @@
             },
         }
     </script>
+
 </head>
 
 <body class="bg-base text-text font-lato flex flex-col min-h-screen">
-    <h1 class="text-3xl text-red">Heiß auf Anatomie?</h1>
+    <main class="w-full mx-auto flex-grow flex flex-col items-center pt-8 px-6">
+        <h1 class="text-3xl text-red">Heiß auf Anatomie?</h1>
+        <h2 class="text-sm mt-2">Aufgüsse zur vollen Stunde</h2>
+
+        <div class="mt-8">
+            <p>Temperatur: <span id="temp-display"></span> °C</p>
+            <p>Luftfeuchtigkeit: <span id="humidity-display"></span> %</p>
+        </div>
+    </main>
+
+    <script>
+        const supabaseUrl = 'https://yzkynjxzipoyjwrhpjmv.supabase.co';
+        const supabaseKey = 'sb_publishable_kgKbsxtWXuSzCX-j0GPnJQ_s8Z9X54t';
+        const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        const tempDisplay = document.getElementById('temp-display');
+        const humidityDisplay = document.getElementById('humidity-display');
+
+        async function loadInitialData() {
+            const { data, error } = await supabaseClient
+                .from('sensor_data')
+                .select('temperature, humidity')
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .single();
+
+            if (error) {
+                console.error('Error fetching initial data:', error);
+                return;
+            }
+
+            if (data && data.length > 0) {
+                tempDisplay.textContent = data.temperature.toFixed(1);
+                humidityDisplay.textContent = data.humidity.toFixed(1);
+            }
+        }
+        loadInitialData();
+    </script>
+
 </body>
 
 </html>
