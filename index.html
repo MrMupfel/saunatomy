@@ -9,6 +9,7 @@
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -39,12 +40,20 @@
 <body class="bg-base text-text font-lato flex flex-col min-h-screen">
     <main class="w-full mx-auto flex-grow flex flex-col items-center pt-8 px-6">
         <h1 class="text-3xl text-red">Heiß auf Anatomie?</h1>
-        <h2 class="text-sm mt-2">Aufgüsse zur vollen Stunde</h2>
+        <h2 class="text-sm mt-2">Aufgüsse zur vollen Stunde 🔥 </h2>
 
         <div class="mt-8">
             <p>Temperatur: <span id="temp-display"></span> °C</p>
             <p>Luftfeuchtigkeit: <span id="humidity-display"></span> %</p>
+            <p>Maximale bisher gemessene Temperatur: <span id="max-temp-display"></span> °C</p>
         </div>
+
+        <div class="mt-8 w-full p-2 bg-base rounded-lg shadow-lg max-w-2xl">
+            <div class="relative h-64 sm:h-80 w-full">
+                <canvas id="weekly-chart"></canvas>
+            </div>
+        </div>
+
     </main>
 
     <script>
@@ -54,6 +63,10 @@
 
         const tempDisplay = document.getElementById('temp-display');
         const humidityDisplay = document.getElementById('humidity-display');
+        const maxTempDisplay = document.getElementById('max-temp-display');
+        const chartCanvas = document.getElementById('weekly-chart');
+
+        let maxTemp = null;
 
         async function loadInitialData() {
             const { data, error } = await supabaseClient
@@ -68,12 +81,142 @@
                 return;
             }
 
-            if (data && data.length > 0) {
+            if (data) {
                 tempDisplay.textContent = data.temperature.toFixed(1);
                 humidityDisplay.textContent = data.humidity.toFixed(1);
             }
         }
+
+        async function loadExtremes() {
+            const { data, error } = await supabaseClient
+                .from('sensor_extremes')
+                .select('max_temperature')
+                .single();
+
+            if (error) {
+                console.error('Error fetching extremes:', error);
+                return;
+            }
+
+            if (data) {
+                maxTemp = data.max_temperature.toFixed(1);
+                maxTempDisplay.textContent = maxTemp;
+            }
+        }
+
+        async function loadGraphData() {
+            const { data, error } = await supabaseClient
+                .from('sensor_weekly_data')
+                .select('*')
+                .order('time_bucket', { ascending: true });
+
+            if (error) {
+                console.error('Error fetching graph data;', error);
+                return;
+            }
+
+            if (data) {
+                const labels = data.map(row => {
+                    const date = new Date(row.time_bucket);
+                    return date.toLocaleString('de-DE', {
+                        weekday: 'short',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                });
+
+                const tempData = data.map(row => row.avg_temperature);
+                const humidityData = data.map(row => row.avg_humidity);
+
+                renderChart(labels, tempData, humidityData)
+            }
+        }
+
+        function renderChart(labels,tempData, humidityData) {
+            new Chart(chartCanvas, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Temperatur (°C)',
+                            data: tempData,
+                            borderColor: '#ed8796',
+                            pointBackgroundColor: '#ed8796',
+                            pointStyle: 'circle',
+                            pointRadius: 2,
+                            pointHoverRadius: 3,
+                            borderWidth: 1,
+                            tension: 0.4,
+                            yAxisID: 'y',
+                        },
+                        {
+                            label: 'Luftfeuchtigkeit (%)',
+                            data: humidityData,
+                            borderColor: '#8caaee',
+                            pointStyle: false,
+                            borderWidth: 1,
+                            tension: 0.4,
+                            borderDash: [1, 8], 
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    scales: {
+                        x: {
+                            ticks: { maxTicksLimit: 14 }
+                        },
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: { display: true, text: 'Temperatur (°C)' }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: { display: true, text: 'Luftfeuchtigkeit (%)' },
+                            grid: { drawOnChartArea: false }
+                        }
+                    }
+                }
+            })
+        }
+
+        supabaseClient
+        .channel('sensor_data_stream')
+        .on('postgres_changes', {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'sensor_data',
+        }, payload => {
+            if (payload.new.temperature !== null) {
+                const newTemp = Number(payload.new.temperature.toFixed(1));
+                tempDisplay.textContent = newTemp;
+                
+                if (newTemp > maxTemp) {
+                    maxTemp = newTemp;
+                    maxTempDisplay.textContent = maxTemp;
+                }
+            }
+            if (payload.new.humidity !== null) {
+                humidityDisplay.textContent = Number(payload.new.humidity.toFixed(1));
+            }
+        })
+        .subscribe();
+        
         loadInitialData();
+        loadExtremes();
+        loadGraphData();
+
     </script>
 
 </body>
