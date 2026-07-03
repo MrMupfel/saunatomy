@@ -29,6 +29,9 @@
                         red: '#ed8796',
                         base: '#24273a',
                         text: '#cad3f5',
+                        surface0: '#363a4f',
+                        subtext0: '#a5adcb',
+                        peach:'#f5a97f',
                     },
                 },
             },
@@ -42,16 +45,19 @@
         <h1 class="text-3xl text-red">Heiß auf Anatomie?</h1>
         <h2 class="text-sm mt-2">Aufgüsse zur vollen Stunde 🔥 </h2>
 
-        <div class="mt-8">
-            <p>Temperatur: <span id="temp-display"></span> °C</p>
-            <p>Luftfeuchtigkeit: <span id="humidity-display"></span> %</p>
-            <p>Maximale bisher gemessene Temperatur: <span id="max-temp-display"></span> °C</p>
-        </div>
-
-        <div class="mt-8 w-full p-2 bg-base rounded-lg shadow-lg max-w-2xl">
-            <div class="relative h-64 sm:h-80 w-full">
-                <canvas id="weekly-chart"></canvas>
+        <div class="mt-8 w-full max-w-4xl flex flex-col items-center">
+            <p>Temperatur: <span id="temp-display" class="text-xl font-fold"></span> °C</p>
+            <p class="text-xs text-subtext0">Gemessen am:</p>
+            <p class="mt-2">Luftfeuchtigkeit: <span id="humidity-display"></span> %</p>
+            
+            <div class="mt-8 mb-8 w-full p-2 bg-surface0 rounded-lg shadow-lg">
+                <div class="relative h-64 sm:h-80 w-full">
+                    <canvas id="weekly-chart"></canvas>
+                </div>
             </div>
+
+            <p>Maximale Temperatur: <span id="max-temp-display" class="font-fold text-peach"></span> °C</p>
+            <p class="text-xs text-subtext0">Gemessen am:</p>
         </div>
 
     </main>
