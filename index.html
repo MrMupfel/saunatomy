@@ -7,7 +7,9 @@
 
     <title>Saunatomy</title>
 
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
+
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
@@ -17,26 +19,18 @@
         href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,100;0,300;0,400;0,700;0,900;1,100;1,300;1,400;1,700;1,900&family=Megrim&display=swap"
         rel="stylesheet">
 
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: {
-                        'lato': ['Lato', 'sans-serif'],
-                    },
-                    colors: {
-                        blue: '#8caaee',
-                        red: '#ed8796',
-                        base: '#24273a',
-                        text: '#cad3f5',
-                        surface0: '#363a4f',
-                        subtext0: '#a5adcb',
-                        peach: '#f5a97f',
-                    },
-                },
-            },
+    <style type="text/tailwindcss">
+        @theme {
+            --font-lato: "Lato", sans-serif;
+            --color-base: #24273a;
+            --color-blue: #8caaee;
+            --color-red: #ed8796;
+            --color-text: #cad3f5;
+            --color-surface0: #363a4f;
+            --color-peach: #f5a97f;
+            --color-subtext0: #a5adcb;
         }
-    </script>
+    </style>
 
 </head>
 
@@ -51,9 +45,14 @@
             <p class="mt-2">Luftfeuchtigkeit: <span id="humidity-display"></span> %</p>
 
             <div class="mt-8 mb-8 w-full p-2 bg-surface0 rounded-lg shadow-lg">
-                <div class="relative h-64 sm:h-80 w-full">
+                <div class="mb-2 relative h-64 sm:h-80 w-full">
                     <canvas id="weekly-chart"></canvas>
                 </div>
+                <label class="label text-xs text-text">
+                    <input type="checkbox" id="point-toggle" 
+                        class="toggle border-text bg-surface0 text-text checked:text-red" />
+                    Datenpunkte anzeigen
+                </label>
             </div>
 
             <p>Maximale Temperatur: <span id="max-temp-display" class="font-fold text-peach"></span> °C</p>
@@ -73,9 +72,11 @@
         const chartCanvas = document.getElementById('weekly-chart');
         const dateDisplay = document.getElementById('date-display');
         const maxDateDisplay = document.getElementById('max-date-display');
+        const pointToggle = document.getElementById('point-toggle')
 
         let maxTemp = null;
         let maxTempDate = null;
+        let chart = null;
 
         async function loadInitialData() {
             const { data, error } = await supabaseClient
@@ -158,8 +159,17 @@
             }
         }
 
+        pointToggle.addEventListener('change', (e) => {
+            if (!chart) return;
+
+            const showPoints = e.target.checked;
+            chart.data.datasets[0].pointRadius = showPoints ? 2 : 0;
+
+            chart.update();
+        });
+
         function renderChart(labels, tempData, humidityData) {
-            new Chart(chartCanvas, {
+            chart = new Chart(chartCanvas, {
                 type: 'line',
                 data: {
                     labels: labels,
@@ -170,7 +180,7 @@
                             borderColor: '#ed8796',
                             pointBackgroundColor: '#ed8796',
                             pointStyle: 'circle',
-                            pointRadius: 2,
+                            pointRadius: 0,
                             pointHoverRadius: 3,
                             borderWidth: 1,
                             tension: 0.4,
