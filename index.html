@@ -66,7 +66,8 @@
                     </div>
 
                     <select id="timeframe-select" class="text-text text-xs px-2 rounded-xl cursor-pointer p-1">
-                        <option value="live" disabled>live</option>
+                        <option value="live" disabled>live 🔥</option>
+                        <option value="sensor_hourly_data">1h</option>
                         <option value="sensor_daily_data" selected>24h</option>
                         <option value="sensor_3days_data">3 Tage</option>
                         <option value="sensor_weekly_data">1 Woche</option>
@@ -75,7 +76,7 @@
 
             </div>
 
-            <p>Maximale Temperatur: <span id="max-temp-display" class="font-fold text-peach"></span> °C</p>
+            <p>Maximale Temperatur: <span id="max-temp-display" class="font-bold text-peach"></span> °C</p>
             <p class="text-xs text-subtext0">Gemessen am: <span id="max-date-display"></span></p>
         </div>
 
@@ -99,6 +100,7 @@
         let maxTemp = null;
         let maxTempDate = null;
         let chart = null;
+        let pollingIntervall = null;
 
         async function loadInitialData() {
             const { data, error } = await supabaseClient
@@ -178,11 +180,37 @@
                 const humidityData = data.map(row => row.avg_humidity);
 
                 if (chart) {
-                    chart.destroy();
+                    chart.data.labels = labels;
+                    chart.data.datasets[0].data = tempData;
+                    chart.data.datasets[1].data = humidityData;
+                    chart.update();
+                } else {
+                    renderChart(labels, tempData, humidityData);
                 }
-
-                renderChart(labels, tempData, humidityData)
             }
+        }
+
+        function startPolling() {
+            if (pollingIntervall) clearInterval(pollingIntervall);
+            
+            const selectedView = timeframeSelect.value;
+            if (selectedView === 'live') return;
+
+            console.log("starting polling");
+            
+            const refreshRates = {
+                'sensor_hourly_data': 1*60*1000,
+                'sensor_daily_data': 5*60*1000,
+                'sensor_3days_data': 15*60*1000,
+                'sensor_weekly_data': 60*60*1000,
+            };
+
+            const intervallTime = refreshRates[selectedView] || 300000;
+
+            pollingIntervall = setInterval(async () => {
+                console.log("fetching new data");
+                await loadGraphData(selectedView);
+            }, intervallTime);
         }
 
         pointToggle.addEventListener('change', (e) => {
@@ -203,13 +231,12 @@
             chart.update();
         });
 
-        timeframeSelect.addEventListener('change', (e) => {
+        timeframeSelect.addEventListener('change', async (e) => {
             const selectedView = e.target.value;
 
-            pointToggle.checked = false;
-            maxToggle.checked = false;
-            
-            loadGraphData(selectedView)
+            await loadGraphData(selectedView);
+
+            startPolling();
         });
 
         function renderChart(labels, tempData, humidityData) {
@@ -308,8 +335,11 @@
                         maxTemp = newTemp;
                         maxTempDisplay.textContent = maxTemp;
                         maxDateDisplay.textContent = newDate;
-                        
-                        chart.update();
+
+                        if (chart) {
+                            chart.options.plugins.annotation.annotations.maxTempLine.value = maxTemp;
+                            chart.update();
+                        }
                     }
                 }
                 if (payload.new.humidity !== null) {
@@ -318,9 +348,27 @@
             })
             .subscribe();
 
-        loadInitialData();
-        loadExtremes();
-        loadGraphData();
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                console.log("Hidden, going to sleep");
+                if (pollingIntervall) clearInterval(pollingIntervall);
+            } else {
+                console.log("active, fetching data");
+                const selectedView = timeframeSelect.value;
+                if (selectedView !== 'live') {
+                    loadGraphData(selectedView);
+                    startPolling();
+                }
+            }
+        });
+
+        async function runApp() {
+            loadInitialData();
+            await loadExtremes();
+            await loadGraphData();
+            startPolling();
+        }
+        runApp();
 
     </script>
 
