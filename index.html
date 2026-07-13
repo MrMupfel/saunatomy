@@ -12,6 +12,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation"></script>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -48,11 +49,30 @@
                 <div class="mb-2 relative h-64 sm:h-80 w-full">
                     <canvas id="weekly-chart"></canvas>
                 </div>
-                <label class="label text-xs text-text">
-                    <input type="checkbox" id="point-toggle" 
-                        class="toggle border-text bg-surface0 text-text checked:text-red" />
-                    Datenpunkte anzeigen
-                </label>
+
+                <div class="flex justify-between items-start py-1">
+
+                    <div class="flex flex-col">
+                        <label class="label text-xs text-text mb-2">
+                            <input type="checkbox" id="point-toggle"
+                                class="toggle border-text bg-surface0 text-text checked:text-red" />
+                            Datenpunkte anzeigen
+                        </label>
+                        <label class="label text-xs text-text">
+                            <input type="checkbox" id="max-toggle"
+                                class="toggle border-text bg-surface0 text-text checked:text-peach" />
+                            Maximum einblenden
+                        </label>
+                    </div>
+
+                    <select id="timeframe-select" class="text-text text-xs px-2 rounded-xl cursor-pointer p-1">
+                        <option value="live" disabled>live</option>
+                        <option value="sensor_daily_data" selected>24h</option>
+                        <option value="sensor_3days_data">3 Tage</option>
+                        <option value="sensor_weekly_data">1 Woche</option>
+                    </select>
+                </div>
+
             </div>
 
             <p>Maximale Temperatur: <span id="max-temp-display" class="font-fold text-peach"></span> °C</p>
@@ -72,7 +92,9 @@
         const chartCanvas = document.getElementById('weekly-chart');
         const dateDisplay = document.getElementById('date-display');
         const maxDateDisplay = document.getElementById('max-date-display');
-        const pointToggle = document.getElementById('point-toggle')
+        const pointToggle = document.getElementById('point-toggle');
+        const maxToggle = document.getElementById('max-toggle');
+        const timeframeSelect = document.getElementById('timeframe-select')
 
         let maxTemp = null;
         let maxTempDate = null;
@@ -131,9 +153,9 @@
             }
         }
 
-        async function loadGraphData() {
+        async function loadGraphData(viewName = 'sensor_daily_data') {
             const { data, error } = await supabaseClient
-                .from('sensor_weekly_data')
+                .from(viewName)
                 .select('*')
                 .order('time_bucket', { ascending: true });
 
@@ -155,6 +177,10 @@
                 const tempData = data.map(row => row.avg_temperature);
                 const humidityData = data.map(row => row.avg_humidity);
 
+                if (chart) {
+                    chart.destroy();
+                }
+
                 renderChart(labels, tempData, humidityData)
             }
         }
@@ -166,6 +192,24 @@
             chart.data.datasets[0].pointRadius = showPoints ? 2 : 0;
 
             chart.update();
+        });
+
+        maxToggle.addEventListener('change', (e) => {
+            if (!chart) return;
+
+            const showMax = e.target.checked;
+            chart.options.plugins.annotation.annotations.maxTempLine.borderWidth = showMax ? 0.4 : 0;
+
+            chart.update();
+        });
+
+        timeframeSelect.addEventListener('change', (e) => {
+            const selectedView = e.target.value;
+
+            pointToggle.checked = false;
+            maxToggle.checked = false;
+            
+            loadGraphData(selectedView)
         });
 
         function renderChart(labels, tempData, humidityData) {
@@ -222,6 +266,19 @@
                             title: { display: true, text: 'Luftfeuchtigkeit (%)' },
                             grid: { drawOnChartArea: false }
                         }
+                    },
+                    plugins: {
+                        annotation: {
+                            annotations: {
+                                maxTempLine: {
+                                    type: 'line',
+                                    value: maxTemp,
+                                    scaleID: 'y',
+                                    borderColor: '#f5a97f',
+                                    borderWidth: 0,
+                                }
+                            }
+                        }
                     }
                 }
             })
@@ -251,6 +308,8 @@
                         maxTemp = newTemp;
                         maxTempDisplay.textContent = maxTemp;
                         maxDateDisplay.textContent = newDate;
+                        
+                        chart.update();
                     }
                 }
                 if (payload.new.humidity !== null) {
